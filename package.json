@@ -1,0 +1,21 @@
+{
+  "name": "noise-remover-app",
+  "version": "1.0.0",
+  "description": "Desktop application for audio noise removal",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "keywords": ["electron", "audio", "noise-removal"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "electron": "^27.0.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "wavefile": "^11.0.0"
+  },
+  "devDependencies": {
+    "electron-builder": "^24.6.4"
+  }
+}
