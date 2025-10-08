@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const { WaveFile } = require('wavefile');
+const { execSync } = require('child_process');
+const os = require('os');
 
 /**
  * シンプルなノイズゲート処理
@@ -64,6 +66,36 @@ function applySpectralSubtraction(audioData, noiseReductionAmount = 0.5) {
 }
 
 /**
+ * 音声ファイルをWAVに変換
+ * @param {string} inputPath - 入力ファイルパス
+ * @returns {string} 変換後のWAVファイルパス
+ */
+function convertToWav(inputPath) {
+  const ext = path.extname(inputPath).toLowerCase();
+  
+  // すでにWAVの場合はそのまま返す
+  if (ext === '.wav') {
+    return inputPath;
+  }
+  
+  // 一時ファイルのパスを生成
+  const tempDir = os.tmpdir();
+  const tempWavPath = path.join(tempDir, `temp_${Date.now()}.wav`);
+  
+  try {
+    // ffmpegでWAVに変換
+    console.log(`Converting ${ext} to WAV...`);
+    execSync(`ffmpeg -i "${inputPath}" -ar 44100 -ac 2 "${tempWavPath}" -y`, {
+      stdio: 'pipe'
+    });
+    
+    return tempWavPath;
+  } catch (error) {
+    throw new Error(`Failed to convert audio file: ${error.message}`);
+  }
+}
+
+/**
  * 音声ファイルを処理する
  * @param {string} inputPath - 入力ファイルパス
  * @param {Object} options - 処理オプション
@@ -71,6 +103,8 @@ function applySpectralSubtraction(audioData, noiseReductionAmount = 0.5) {
  */
 async function processAudioFile(inputPath, options = {}) {
   return new Promise((resolve, reject) => {
+    let tempWavPath = null;
+    
     try {
       // デフォルトオプション
       const {
@@ -79,11 +113,14 @@ async function processAudioFile(inputPath, options = {}) {
         method = 'both' // 'gate', 'spectral', 'both'
       } = options;
 
+      // WAVに変換
+      tempWavPath = convertToWav(inputPath);
+
       // WAVファイルを読み込み
-      const buffer = fs.readFileSync(inputPath);
+      const buffer = fs.readFileSync(tempWavPath);
       const wav = new WaveFile(buffer);
       
-      // 16bitに変換
+      // 32bit floatに変換
       wav.toBitDepth('32f');
       
       // サンプル数とチャンネル数を取得
@@ -134,6 +171,15 @@ async function processAudioFile(inputPath, options = {}) {
       // WAVファイルとして出力
       const outputBuffer = wav.toBuffer();
       
+      // 一時ファイルを削除
+      if (tempWavPath && tempWavPath !== inputPath) {
+        try {
+          fs.unlinkSync(tempWavPath);
+        } catch (e) {
+          // エラーは無視
+        }
+      }
+      
       resolve({
         buffer: outputBuffer,
         sampleRate: wav.fmt.sampleRate,
@@ -142,6 +188,14 @@ async function processAudioFile(inputPath, options = {}) {
       });
       
     } catch (error) {
+      // 一時ファイルを削除
+      if (tempWavPath && tempWavPath !== inputPath) {
+        try {
+          fs.unlinkSync(tempWavPath);
+        } catch (e) {
+          // エラーは無視
+        }
+      }
       reject(error);
     }
   });
